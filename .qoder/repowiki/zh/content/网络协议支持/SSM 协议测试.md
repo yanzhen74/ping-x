@@ -7,6 +7,9 @@
 - [config.go](file://internal/config/config.go)
 - [protocol.go](file://internal/proto/protocol.go)
 - [ssm.go](file://internal/proto/ssm.go)
+- [ssm_linux.go](file://internal/proto/ssm_linux.go)
+- [ssm_windows.go](file://internal/proto/ssm_windows.go)
+- [multicast.go](file://internal/proto/multicast.go)
 - [recv.go](file://cmd/recv.go)
 - [send.go](file://cmd/send.go)
 - [config_cmd.go](file://cmd/config_cmd.go)
@@ -24,15 +27,18 @@
 6. [SSM 协议详解](#ssm-协议详解)
 7. [配置选项详解](#配置选项详解)
 8. [使用场景与示例](#使用场景与示例)
-9. [性能考虑](#性能考虑)
-10. [故障排除指南](#故障排除指南)
-11. [结论](#结论)
+9. [平台特定实现](#平台特定实现)
+10. [性能考虑](#性能考虑)
+11. [故障排除指南](#故障排除指南)
+12. [结论](#结论)
 
 ## 简介
 
-Ping-X 是一个跨平台网络协议连通性检测工具，支持 TCP、UDP、组播（Multicast）和 SSM（Source-Specific Multicast）等多种协议的连通性测试。本文档专注于 SSM 协议测试功能的详细技术说明，深入解释 SSM 协议的工作原理以及 Ping-X 中的实现机制。
+Ping-X 是一个跨平台网络协议连通性检测工具，支持 TCP、UDP、组播（Multicast）和 SSM（Source-Specific Multicast）等多种协议的连通性测试。本文档专注于 SSM 协议测试功能的详细技术说明，深入解释 SSM 协议的工作原理以及 Ping-X 中的完整实现机制。
 
 SSM（Source-Specific Multicast，源特定组播）是 Internet 组管理协议（IGMP）v3 和多播转发协议（PIM）中引入的一种高级组播模式。与传统的 ASM（Any-Source Multicast，任意源组播）不同，SSM 允许接收者精确指定希望接收的源地址，从而实现更精细的组播控制和更高的安全性。
+
+**更新** SSM 协议已在 Ping-X 中完整实现，包括 Linux 和 Windows 平台的特定支持。
 
 ## 项目结构
 
@@ -55,12 +61,17 @@ end
 subgraph "协议实现"
 G[protocol.go]
 H[ssm.go]
+I[multicast.go]
+end
+subgraph "平台特定实现"
+J[ssm_linux.go]
+K[ssm_windows.go]
 end
 subgraph "数据包处理"
-I[packet.go]
+L[packet.go]
 end
 subgraph "统计分析"
-J[stats.go]
+M[stats.go]
 end
 A --> B
 B --> C
@@ -72,8 +83,10 @@ E --> F
 C --> G
 D --> G
 G --> H
-H --> I
 H --> J
+H --> K
+H --> L
+H --> M
 ```
 
 **图表来源**
@@ -81,12 +94,15 @@ H --> J
 - [root.go:1-54](file://cmd/root.go#L1-L54)
 - [config.go:1-125](file://internal/config/config.go#L1-L125)
 - [protocol.go:1-52](file://internal/proto/protocol.go#L1-L52)
-- [ssm.go:1-21](file://internal/proto/ssm.go#L1-L21)
+- [ssm.go:1-166](file://internal/proto/ssm.go#L1-L166)
+- [ssm_linux.go:1-21](file://internal/proto/ssm_linux.go#L1-L21)
+- [ssm_windows.go:1-133](file://internal/proto/ssm_windows.go#L1-L133)
+- [multicast.go:1-156](file://internal/proto/multicast.go#L1-L156)
 
 **章节来源**
 - [main.go:1-11](file://main.go#L1-L11)
 - [root.go:1-54](file://cmd/root.go#L1-L54)
-- [go.mod:1-25](file://go.mod#L1-L25)
+- [go.mod:1-28](file://go.mod#L1-L28)
 
 ## 核心组件
 
@@ -159,12 +175,12 @@ Receiver <|.. SSMReceiver
 
 **图表来源**
 - [protocol.go:11-51](file://internal/proto/protocol.go#L11-L51)
-- [ssm.go:11-20](file://internal/proto/ssm.go#L11-L20)
+- [ssm.go:16-20](file://internal/proto/ssm.go#L16-L20)
 
 **章节来源**
 - [config.go:11-27](file://internal/config/config.go#L11-L27)
 - [protocol.go:11-51](file://internal/proto/protocol.go#L11-L51)
-- [ssm.go:11-20](file://internal/proto/ssm.go#L11-L20)
+- [ssm.go:16-20](file://internal/proto/ssm.go#L16-L20)
 
 ## 架构概览
 
@@ -187,10 +203,15 @@ end
 subgraph "协议层"
 G[protocol.go]
 H[ssm.go]
+I[multicast.go]
+end
+subgraph "平台特定实现"
+J[ssm_linux.go]
+K[ssm_windows.go]
 end
 subgraph "网络层"
-I[packet.go]
-J[stats.go]
+L[packet.go]
+M[stats.go]
 end
 A --> B
 B --> C
@@ -202,8 +223,10 @@ E --> F
 C --> G
 D --> G
 G --> H
-H --> I
 H --> J
+H --> K
+H --> L
+H --> M
 ```
 
 **图表来源**
@@ -238,9 +261,9 @@ SENDER-->>CLI : 返回执行结果
 ```
 
 **图表来源**
-- [send.go:34-91](file://cmd/send.go#L34-L91)
+- [send.go:34-124](file://cmd/send.go#L34-L124)
 - [protocol.go:22-35](file://internal/proto/protocol.go#L22-L35)
-- [ssm.go:14-16](file://internal/proto/ssm.go#L14-L16)
+- [ssm.go:22-111](file://internal/proto/ssm.go#L22-L111)
 
 #### 接收端命令（recv）
 
@@ -265,13 +288,13 @@ RECEIVER-->>CLI : 返回执行结果
 ```
 
 **图表来源**
-- [recv.go:29-72](file://cmd/recv.go#L29-L72)
+- [recv.go:29-104](file://cmd/recv.go#L29-L104)
 - [protocol.go:38-51](file://internal/proto/protocol.go#L38-L51)
-- [ssm.go:18-20](file://internal/proto/ssm.go#L18-L20)
+- [ssm.go:113-165](file://internal/proto/ssm.go#L113-L165)
 
 **章节来源**
-- [send.go:11-91](file://cmd/send.go#L11-L91)
-- [recv.go:11-72](file://cmd/recv.go#L11-L72)
+- [send.go:30-124](file://cmd/send.go#L30-L124)
+- [recv.go:20-104](file://cmd/recv.go#L20-L104)
 
 ### 配置验证组件
 
@@ -345,7 +368,7 @@ SPT模式 : "Shortest Path Tree<br/>直接源-接收者路径"
 ```
 
 **图表来源**
-- [ssm.go:14-20](file://internal/proto/ssm.go#L14-L20)
+- [ssm.go:113-165](file://internal/proto/ssm.go#L113-L165)
 
 ### RP（Rendezvous Point）概念
 
@@ -356,7 +379,7 @@ RP（Rendezvous Point）是 ASM 协议中的关键概念，但在 SSM 中不需�
 - **部署复杂性**: RP 需要专门的硬件和软件配置
 
 **章节来源**
-- [ssm.go:14-20](file://internal/proto/ssm.go#L14-L20)
+- [ssm.go:113-165](file://internal/proto/ssm.go#L113-L165)
 
 ## 配置选项详解
 
@@ -423,7 +446,7 @@ SSM 配置遵循以下验证规则：
 **章节来源**
 - [config.go:11-27](file://internal/config/config.go#L11-L27)
 - [config.go:49-100](file://internal/config/config.go#L49-L100)
-- [config_cmd.go:69-84](file://cmd/config_cmd.go#L69-L84)
+- [config_cmd.go:69-85](file://cmd/config_cmd.go#L69-L85)
 
 ## 使用场景与示例
 
@@ -521,8 +544,94 @@ tests:
 
 **章节来源**
 - [config_cmd.go:22-85](file://cmd/config_cmd.go#L22-L85)
-- [send.go:34-91](file://cmd/send.go#L34-L91)
-- [recv.go:29-72](file://cmd/recv.go#L29-L72)
+- [send.go:30-124](file://cmd/send.go#L30-L124)
+- [recv.go:20-104](file://cmd/recv.go#L20-L104)
+
+## 平台特定实现
+
+### Linux 平台实现
+
+在 Linux 平台上，SSM 协议使用标准的 Go net 包和 golang.org/x/net/ipv4 包来实现源特定组播：
+
+```mermaid
+flowchart TD
+Linux[Linux 平台] --> Join[JoinSourceSpecificGroup]
+Linux --> Leave[LeaveSourceSpecificGroup]
+Join --> NetAPI[Go net 包]
+Leave --> NetAPI
+NetAPI --> Kernel[Linux 内核 IGMPv3]
+Kernel --> Result[源特定组播]
+```
+
+**图表来源**
+- [ssm_linux.go:12-20](file://internal/proto/ssm_linux.go#L12-L20)
+
+Linux 实现特点：
+- 使用 `JoinSourceSpecificGroup` 和 `LeaveSourceSpecificGroup` 函数
+- 直接调用 Go 标准库的 ipv4 包
+- 无需额外的系统调用或 CGO 支持
+
+### Windows 平台实现
+
+在 Windows 平台上，SSM 协议使用 CGO 和 Winsock API 来实现源特定组播：
+
+```mermaid
+flowchart TD
+Windows[Windows 平台] --> CGO[CGO 调用]
+CGO --> Winsock[Winsock API]
+Winsock --> IP_ADD_SOURCE_MEMBERSHIP[IP_ADD_SOURCE_MEMBERSHIP]
+Winsock --> IP_DROP_SOURCE_MEMBERSHIP[IP_DROP_SOURCE_MEMBERSHIP]
+IP_ADD_SOURCE_MEMBERSHIP --> Result[源特定组播]
+IP_DROP_SOURCE_MEMBERSHIP --> Result
+```
+
+**图表来源**
+- [ssm_windows.go:6-49](file://internal/proto/ssm_windows.go#L6-L49)
+
+Windows 实现特点：
+- 使用 CGO 调用 C 语言函数
+- 通过 Winsock2 API 设置源特定组播
+- 需要链接 ws2_32 库
+- 使用自定义的 `my_ip_mreq_source` 结构体
+- **支持通过 `-b` 参数指定本地接口 IP**，确保正确绑定到目标网络接口
+
+#### Windows 网络接口配置
+
+在 Windows 平台上，推荐使用 `-b` 参数指定本地 IP 地址来确定使用哪个网络接口：
+
+```bash
+# 1. 查看网络接口和 IP 地址
+ipconfig
+
+# 2. 找到局域网 IP，例如：192.168.1.100
+
+# 3. 使用 -b 参数指定该 IP
+ping-x.exe recv --proto ssm --group 232.1.1.1 --source 10.0.0.50 --port 9003 -b 192.168.1.100
+```
+
+**重要**：Windows 的 `IP_ADD_SOURCE_MEMBERSHIP` 需要明确指定本地接口的 IP 地址。如果不指定 `-b` 参数，系统可能无法正确绑定到接收多播数据的网络接口。
+
+### 跨平台兼容性
+
+SSM 协议通过 Go 的构建标签实现跨平台兼容：
+
+```mermaid
+graph TB
+Platform[平台检测] --> BuildTag{构建标签检查}
+BuildTag --> |linux| LinuxImpl[Linux 实现]
+BuildTag --> |windows| WindowsImpl[Windows 实现]
+LinuxImpl --> CommonAPI[通用 API 接口]
+WindowsImpl --> CommonAPI
+CommonAPI --> SSMFunc[ssmJoinGroup/ssmLeaveGroup]
+```
+
+**图表来源**
+- [ssm_linux.go:1-3](file://internal/proto/ssm_linux.go#L1-L3)
+- [ssm_windows.go:1-3](file://internal/proto/ssm_windows.go#L1-L3)
+
+**章节来源**
+- [ssm_linux.go:1-21](file://internal/proto/ssm_linux.go#L1-L21)
+- [ssm_windows.go:1-133](file://internal/proto/ssm_windows.go#L1-L133)
 
 ## 性能考虑
 
@@ -592,6 +701,25 @@ Ping-X 使用高效的探测包结构，包含以下字段：
 **问题**: 指定的网络接口不存在
 **解决**: 使用 `ip addr` 命令检查可用的网络接口
 
+### 平台特定问题
+
+#### Linux 平台问题
+
+**问题**: 组播组加入失败
+**解决**: 检查内核是否支持 IGMPv3，确认网络接口状态正常
+
+#### Windows 平台问题
+
+**问题**: CGO 编译失败
+**解决**: 确保安装了适当的编译工具链，检查 ws2_32 库链接
+
+**问题**: SSM 接收端无法收到数据
+**解决**: 
+1. 使用 `-b` 参数指定 Windows 主机的本地 IP 地址
+2. 确保 `--source` 参数正确指定了发送端的 IP 地址
+3. 检查防火墙是否允许 UDP 多播通信
+4. 使用 `ipconfig` 确认 IP 地址正确
+
 ### 调试技巧
 
 1. **启用详细输出**: 使用 `-v` 或 `--verbose` 参数获取详细日志
@@ -605,14 +733,34 @@ Ping-X 使用高效的探测包结构，包含以下字段：
 
 ## 结论
 
-Ping-X 的 SSM 协议测试功能提供了强大的源特定组播测试能力。通过其模块化的架构设计、完善的配置管理和丰富的使用场景支持，用户可以轻松地进行精确源控制的组播测试。
+Ping-X 的 SSM 协议测试功能已经完整实现，提供了强大的源特定组播测试能力。通过其模块化的架构设计、完善的配置管理和丰富的使用场景支持，用户可以轻松地进行精确源控制的组播测试。
 
-当前实现已经完成了 SSM 协议的基础框架搭建，包括配置解析、参数验证和协议抽象层。虽然具体的 SSM 发送和接收功能尚未完全实现，但框架已经为后续的功能扩展做好了充分准备。
+### 当前实现状态
 
-未来的发展方向包括：
-- 完成 SSM 发送和接收功能的具体实现
-- 增加更多的网络接口支持
+**已完成的功能**：
+- SSM 协议的完整发送和接收实现
+- Linux 和 Windows 平台的特定支持
+- 标准的配置验证和命令行接口
+- 跨平台的构建标签支持
+
+**架构特点**：
+- 通过 Go 的构建标签实现平台特定功能
+- 使用统一的接口抽象不同的协议实现
+- 完善的配置验证和错误处理机制
+- 支持配置文件和命令行两种使用方式
+
+### 未来发展方向
+
+基于现有的完整实现，Ping-X 的 SSM 功能已经具备了良好的基础。未来的发展方向包括：
+- 增强错误处理和日志记录功能
+- 添加更多网络接口支持
 - 提供更详细的性能分析报告
 - 支持更复杂的组播网络拓扑测试
+- 优化跨平台兼容性和性能
 
 通过持续的开发和完善，Ping-X 将成为 SSM 协议测试领域的重要工具，为用户提供可靠、高效的组播网络测试解决方案。
+
+**章节来源**
+- [ssm.go:1-166](file://internal/proto/ssm.go#L1-L166)
+- [ssm_linux.go:1-21](file://internal/proto/ssm_linux.go#L1-L21)
+- [ssm_windows.go:1-133](file://internal/proto/ssm_windows.go#L1-L133)

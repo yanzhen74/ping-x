@@ -123,16 +123,19 @@ func (r *SSMReceiver) Receive(ctx context.Context, cfg *config.TestConfig) error
 	var iface *net.Interface
 	if cfg.Iface != "" {
 		iface, _ = net.InterfaceByName(cfg.Iface)
+	} else if cfg.Bind != "" && cfg.Bind != "0.0.0.0" {
+		// 通过绑定的IP地址查找对应的网络接口
+		iface = findInterfaceByIP(cfg.Bind)
 	}
 
 	group := &net.UDPAddr{IP: net.ParseIP(cfg.Group)}
 	source := &net.UDPAddr{IP: net.ParseIP(cfg.Source)}
 
-	if err := ssmJoinGroup(conn, iface, group, source); err != nil {
+	if err := ssmJoinGroup(conn, iface, group, source, cfg.Bind); err != nil {
 		return fmt.Errorf("SSM join source specific group %s source %s failed: %w",
 			cfg.Group, cfg.Source, err)
 	}
-	defer ssmLeaveGroup(conn, iface, group, source)
+	defer ssmLeaveGroup(conn, iface, group, source, cfg.Bind)
 
 	fmt.Printf("Listening on SSM group %s:%d source=%s ...\n", cfg.Group, cfg.Port, cfg.Source)
 
@@ -162,4 +165,35 @@ func (r *SSMReceiver) Receive(ctx context.Context, cfg *config.TestConfig) error
 		fmt.Printf("[%s] SSM recv #%d from %s  group=%s source=%s\n",
 			time.Now().Format("15:04:05"), probe.Seq, addr.String(), cfg.Group, cfg.Source)
 	}
+}
+
+// findInterfaceByIP 根据IP地址查找对应的网络接口
+func findInterfaceByIP(ipStr string) *net.Interface {
+	targetIP := net.ParseIP(ipStr)
+	if targetIP == nil {
+		return nil
+	}
+
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return nil
+	}
+
+	for _, iface := range ifaces {
+		addrs, err := iface.Addrs()
+		if err != nil {
+			continue
+		}
+
+		for _, addr := range addrs {
+			if ipnet, ok := addr.(*net.IPNet); ok {
+				// 检查IP是否在该接口的子网中
+				if ipnet.IP.Equal(targetIP) {
+					return &iface
+				}
+			}
+		}
+	}
+
+	return nil
 }

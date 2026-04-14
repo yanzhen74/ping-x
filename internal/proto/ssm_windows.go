@@ -56,18 +56,23 @@ import (
 	"unsafe"
 )
 
-func ssmJoinGroup(conn net.PacketConn, iface *net.Interface, group, source *net.UDPAddr) error {
-	return cgoSSMOpt(conn, iface, group, source, true)
+func ssmJoinGroup(conn net.PacketConn, iface *net.Interface, group, source *net.UDPAddr, bindIP string) error {
+	return cgoSSMOpt(conn, iface, group, source, bindIP, true)
 }
 
-func ssmLeaveGroup(conn net.PacketConn, iface *net.Interface, group, source *net.UDPAddr) error {
-	return cgoSSMOpt(conn, iface, group, source, false)
+func ssmLeaveGroup(conn net.PacketConn, iface *net.Interface, group, source *net.UDPAddr, bindIP string) error {
+	return cgoSSMOpt(conn, iface, group, source, bindIP, false)
 }
 
-func cgoSSMOpt(conn net.PacketConn, iface *net.Interface, group, source *net.UDPAddr, join bool) error {
+func cgoSSMOpt(conn net.PacketConn, iface *net.Interface, group, source *net.UDPAddr, bindIP string, join bool) error {
 	groupStr := group.IP.To4().String()
 	sourceStr := source.IP.To4().String()
-	ifaceStr := getIfaceIPv4(iface)
+
+	// 获取接口IPv4地址，优先使用bindIP
+	ifaceStr := bindIP
+	if ifaceStr == "" {
+		ifaceStr = getIfaceIPv4(iface)
+	}
 
 	cGroup := C.CString(groupStr)
 	cSource := C.CString(sourceStr)
