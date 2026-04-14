@@ -24,13 +24,13 @@ jobs:
       - name: Build Linux
         run: |
           mkdir -p dist
-          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -mod=vendor -ldflags "-X main.Version=${{ github.ref_name }} -s -w" -o dist/ping-x_${{ github.ref_name }}_linux_amd64 .
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -mod=mod -ldflags "-X main.Version=${{ github.ref_name }} -s -w" -o dist/ping-x_${{ github.ref_name }}_linux_amd64 .
           cd dist && tar czf ping-x_${{ github.ref_name }}_linux_amd64.tar.gz ping-x_${{ github.ref_name }}_linux_amd64
 
       - name: Build Windows
         run: |
           mkdir -p dist
-          CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc GOOS=windows GOARCH=amd64 go build -mod=vendor -ldflags "-X main.Version=${{ github.ref_name }} -s -w" -o dist/ping-x_${{ github.ref_name }}_windows_amd64.exe .
+          CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc GOOS=windows GOARCH=amd64 go build -mod=mod -ldflags "-X main.Version=${{ github.ref_name }} -s -w" -o dist/ping-x_${{ github.ref_name }}_windows_amd64.exe .
           cd dist && zip ping-x_${{ github.ref_name }}_windows_amd64.zip ping-x_${{ github.ref_name }}_windows_amd64.exe
 
       - name: List built files
