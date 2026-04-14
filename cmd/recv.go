@@ -8,9 +8,9 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/spf13/cobra"
 	"github.com/yanzhen74/ping-x/internal/config"
 	"github.com/yanzhen74/ping-x/internal/proto"
-	"github.com/spf13/cobra"
 )
 
 var recvCmd = &cobra.Command{

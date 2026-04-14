@@ -11,8 +11,9 @@ A cross-platform CLI tool for testing network connectivity across TCP, UDP, Mult
 - **Multi-Protocol Support**: TCP, UDP, Multicast (ASM), and Source-Specific Multicast (SSM)
 - **Dual Mode Operation**: Run as sender or receiver for end-to-end connectivity testing
 - **Flexible Configuration**: Command-line flags or YAML configuration files
-- **Cross-Platform**: Native builds for Linux and Windows
+- **Cross-Platform**: Native builds for Linux and Windows (SSM on Windows via CGO/Winsock2)
 - **Real-time Statistics**: Packet loss, latency metrics, and throughput
+- **Offline Build**: Vendor mode for air-gapped / isolated LAN environments
 
 ## Quick Start
 
@@ -35,7 +36,12 @@ Expand-Archive ping-x.zip
 ```bash
 git clone https://github.com/yanzhen74/ping-x.git
 cd ping-x
-go build -o ping-x .
+
+# Linux (no CGO needed)
+CGO_ENABLED=0 go build -o ping-x .
+
+# Windows cross-compile (requires MinGW-w64 for SSM CGO support)
+CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc GOOS=windows GOARCH=amd64 go build -o ping-x.exe .
 ```
 
 ## Usage
@@ -214,6 +220,23 @@ tests:
 ### Requirements
 
 - Go 1.17 or later
+- MinGW-w64 (for Windows cross-compilation with CGO/SSM support)
+  ```bash
+  # Ubuntu/Debian
+  sudo apt-get install -y gcc-mingw-w64-x86-64
+  ```
+
+### Offline / Air-gapped Build
+
+The project includes `go mod vendor` support for isolated LAN compilation:
+
+```bash
+# Generate vendor directory (requires internet)
+go mod vendor
+
+# Build offline with vendor
+go build -mod=vendor -o ping-x .
+```
 
 ### Build Commands
 
@@ -234,12 +257,17 @@ make release
 ### Cross-Compilation
 
 ```bash
-# Linux AMD64
-GOOS=linux GOARCH=amd64 go build -o ping-x_linux_amd64 .
+# Linux AMD64 (pure Go, no CGO)
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o ping-x_linux_amd64 .
 
-# Windows AMD64
-GOOS=windows GOARCH=amd64 go build -o ping-x_windows_amd64.exe .
+# Windows AMD64 (CGO required for SSM Winsock2 support)
+CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc GOOS=windows GOARCH=amd64 go build -o ping-x_windows_amd64.exe .
 ```
+
+> **Note**: Windows SSM receiver uses CGO to call Winsock2 `setsockopt` directly for
+> `IP_ADD_SOURCE_MEMBERSHIP`, as `golang.org/x/net/ipv4` does not implement
+> `JoinSourceSpecificGroup` on Windows. All other protocols (TCP, UDP, Multicast)
+> work without CGO on both platforms.
 
 ## License
 

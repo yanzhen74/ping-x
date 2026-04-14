@@ -3,6 +3,9 @@ ping-x
 ping-x.exe
 dist/
 
+# Vendor (use go mod vendor to regenerate)
+vendor/
+
 # IDE
 .idea/
 .vscode/
@@ -12,3 +15,4 @@ dist/
 # OS
 .DS_Store
 Thumbs.db
+ping-x.tar.gz

@@ -120,8 +120,6 @@ func (r *SSMReceiver) Receive(ctx context.Context, cfg *config.TestConfig) error
 	}
 	defer conn.Close()
 
-	p := ipv4.NewPacketConn(conn)
-
 	var iface *net.Interface
 	if cfg.Iface != "" {
 		iface, _ = net.InterfaceByName(cfg.Iface)
@@ -130,11 +128,11 @@ func (r *SSMReceiver) Receive(ctx context.Context, cfg *config.TestConfig) error
 	group := &net.UDPAddr{IP: net.ParseIP(cfg.Group)}
 	source := &net.UDPAddr{IP: net.ParseIP(cfg.Source)}
 
-	if err := p.JoinSourceSpecificGroup(iface, group, source); err != nil {
+	if err := ssmJoinGroup(conn, iface, group, source); err != nil {
 		return fmt.Errorf("SSM join source specific group %s source %s failed: %w",
 			cfg.Group, cfg.Source, err)
 	}
-	defer p.LeaveSourceSpecificGroup(iface, group, source)
+	defer ssmLeaveGroup(conn, iface, group, source)
 
 	fmt.Printf("Listening on SSM group %s:%d source=%s ...\n", cfg.Group, cfg.Port, cfg.Source)
 
