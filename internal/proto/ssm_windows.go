@@ -117,6 +117,14 @@ func cgoSSMOpt(conn net.PacketConn, iface *net.Interface, group, source *net.UDP
 	return retErr
 }
 
+// setSocketReuse 设置 SO_REUSEADDR，允许多播端口重用
+func setSocketReuse(fd uintptr) error {
+	if err := syscall.SetsockoptInt(syscall.Handle(fd), syscall.SOL_SOCKET, syscall.SO_REUSEADDR, 1); err != nil {
+		return err
+	}
+	return nil
+}
+
 // getIfaceIPv4 获取网络接口的第一个 IPv4 地址字符串
 func getIfaceIPv4(iface *net.Interface) string {
 	if iface == nil {

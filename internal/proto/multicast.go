@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"syscall"
 	"time"
 
 	"golang.org/x/net/ipv4"
@@ -105,7 +106,20 @@ func (s *MulticastSender) Send(ctx context.Context, cfg *config.TestConfig, stat
 func (r *MulticastReceiver) Receive(ctx context.Context, cfg *config.TestConfig) error {
 	listenAddr := fmt.Sprintf("0.0.0.0:%d", cfg.Port)
 
-	conn, err := net.ListenPacket("udp4", listenAddr)
+	lc := net.ListenConfig{
+		Control: func(network, address string, c syscall.RawConn) error {
+			var opErr error
+			err := c.Control(func(fd uintptr) {
+				opErr = setSocketReuse(fd)
+			})
+			if err != nil {
+				return err
+			}
+			return opErr
+		},
+	}
+
+	conn, err := lc.ListenPacket(ctx, "udp4", listenAddr)
 	if err != nil {
 		return fmt.Errorf("MULTICAST listen on %s failed: %w", listenAddr, err)
 	}
